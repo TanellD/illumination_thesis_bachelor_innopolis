@@ -1,0 +1,58 @@
+# requirements.txt
+# =================
+# Exact versions used in the original thesis experiments.
+# Environment: Ubuntu 20.04, Python 3.9, CUDA 12.6, cuDNN 9.
+#
+# Install:
+#   pip install torch==2.2.2 torchvision==0.17.2 torchaudio==2.2.2 \
+#       --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements.txt
+#
+# Note: PyTorch is NOT listed here because the CUDA variant must be chosen
+# explicitly (cu118 / cu121 / cu126 / cpu). Install PyTorch first, then
+# install this file.
+
+# ── Deep learning ─────────────────────────────────────────────────────────────
+timm==0.9.16
+
+# ── Face detection ────────────────────────────────────────────────────────────
+facenet-pytorch==2.6.0
+
+# ── Landmarks / masks ─────────────────────────────────────────────────────────
+# mediapipe 0.10.18 is the version that actually ran in the thesis experiments.
+# 0.10.21 failed (see cli_history lines 809-830). Requires sentencepiece<0.2
+# and tensorflow<2.16 as co-dependencies; install in this order:
+#   pip install "tensorflow<2.16"
+#   pip install --no-compile "mediapipe==0.10.18" "sentencepiece<0.2"
+mediapipe==0.10.18
+sentencepiece==0.1.99
+
+# ── Image processing ──────────────────────────────────────────────────────────
+opencv-python==4.9.0.80
+Pillow==10.2.0
+scikit-image==0.22.0
+
+# ── Data / numerics ───────────────────────────────────────────────────────────
+numpy==1.26.4
+pandas==2.2.1
+scipy==1.12.0
+scikit-learn==1.4.1.post1
+
+# ── Config / utilities ────────────────────────────────────────────────────────
+PyYAML==6.0.1
+tqdm==4.66.2
+pyarrow==15.0.2      # parquet I/O for taxonomy attributes
+
+# ── Statistics ────────────────────────────────────────────────────────────────
+statsmodels==0.14.1  # contingency tests (chi-square, Cramér's V) in taxonomy
+
+# ── Visualisation (analysis phase — CPU only) ─────────────────────────────────
+matplotlib==3.8.3
+seaborn==0.13.2
+
+# ── Dev / test (optional) ─────────────────────────────────────────────────────
+# Uncomment if you need the development environment:
+# pytest==8.1.1
+# pytest-cov==5.0.0
+# ruff==0.3.4
+# mypy==1.9.0

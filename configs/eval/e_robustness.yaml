@@ -1,0 +1,44 @@
+# configs/eval/e_robustness.yaml
+# ================================
+# E — Robustness perturbation grid.
+# Used by: experiments/e_robustness.py
+#
+# Evaluates every checkpoint under all perturbation conditions and writes
+# a single long-form CSV:
+#   model, dataset, perturbation_family, perturbation_value,
+#   auc, eer, fpr_at_tpr95, ece, brier, n_samples
+
+output_root: outputs
+
+batch_size: 8
+num_workers: 0
+
+# Manifests (same as d_eval)
+manifests:
+  FF++_stage1: outputs/crops/ff++/manifest.csv
+  CelebDF:     outputs/crops/celebdf/manifest.csv
+  DFDC:        outputs/crops/dfdc/manifest.csv
+  DFF:         outputs/crops/dff/manifest.csv
+
+# Checkpoints — inherit from d_eval.yaml for consistency
+checkpoints:
+  RGB-Only:
+    family: stage1_rgb
+    target_size: 299
+    ckpt: outputs/b1_ablation/checkpoints/best_RGB-Only_seed42.pt
+  Residual-Only:
+    family: stage1_residual
+    target_size: 299
+    ckpt: outputs/b1_ablation/checkpoints/best_Residual-Only_seed42.pt
+  Late-Fusion:
+    family: stage1_fusion
+    target_size: 299
+    ckpt: outputs/b1_ablation/checkpoints/best_Late-Fusion_seed42.pt
+  B_mix:
+    family: stage2
+    target_size: 380
+    ckpt: outputs/c3_regimes/B_mix_seed42/best.pt
+  C_mix:
+    family: stage2
+    target_size: 380
+    ckpt: outputs/c3_regimes/C_mix_seed42/best.pt

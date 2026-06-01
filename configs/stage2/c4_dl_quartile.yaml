@@ -1,0 +1,39 @@
+# configs/stage2/c4_dl_quartile.yaml
+# =====================================
+# C.4 — Multi-seed dL-quartile diagnostic (HIGHDL vs LOWDL)
+#
+# Two C_mix-recipe variants trained on 3 seeds each:
+#   HIGHDL : top-quartile T-SBI pairs by dL_mean (~1830 pairs, mean dL ~12.4)
+#   LOWDL  : bottom-quartile T-SBI pairs by dL_mean (~1830 pairs, mean dL ~1.6)
+#
+# Real frames + FF++ supervised fakes + classic SBI fakes kept identical
+# in both manifests.  Only the T-SBI component differs.
+#
+# Thresholds (q75/q25) are computed from the TRAIN split of the C_pure
+# manifest only, then applied to both train and val.
+
+experiment: c4_dl_quartile
+
+# Paths to manifests from c3 regime training (C_pure as base)
+cpure_train_csv:  outputs/manifests/C_pure_train.csv
+cpure_val_csv:    outputs/manifests/C_pure_val.csv
+
+# T-SBI labels CSV (written by c1_generate_tsbi.py)
+tsbi_labels_csv:  outputs/tsbi_labels.csv
+
+# Seeds for multi-seed diagnostic (3 seeds as per thesis)
+seeds: [42, 123, 235]
+
+# Training protocol — identical to C.3
+training:
+  max_epochs: 20
+  batch_size: 16              # matches C.3 actual run (launch_pipeline.sh BATCH_SIZE=16)
+
+optimizer:
+  type: AdamW
+  lr: 3.0e-4                  # matches C.3 actual run (launch_pipeline.sh LR=3e-4)
+  weight_decay: 1.0e-4
+
+scheduler:
+  type: cosine_warmup
+  warmup_epochs: 1

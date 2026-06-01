@@ -1,0 +1,27 @@
+experiment: tsbi_generation
+description: "T-SBI temporal pair generation with illumination gating"
+
+# Pair selection
+per_video: 10
+min_gap_sec: 0.8
+max_gap_sec: 5.0
+
+# Illumination gating (§C.2 of thesis — do not change defaults)
+min_illum_delta_mean: 6.0   # dL_mean >= 6 OR dL_std >= 3
+min_illum_delta_std: 3.0
+illum_relax: true           # best-effort fallback: accept pair with largest available delta
+
+# Pair acceptance geometry (do not change)
+max_scale_ratio: 1.3
+max_center_offset_frac: 0.35
+
+# Image output
+padding_ratio: 0.3
+jpeg_quality_range: [75, 98]   # sampled uniformly per crop
+
+# Transfer mode (default for headline experiments)
+# All five modes are available for ablations (C.5)
+transfer_mode: histmatch   # options: histmatch, reinhard, lowfreq, intrinsic, gainmap
+
+seed: 42
+splits: [train]

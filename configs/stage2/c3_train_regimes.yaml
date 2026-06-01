@@ -1,0 +1,43 @@
+experiment: c3_train_regimes
+description: "Five-regime training ablation: A, B_pure, B_mix, C_pure, C_mix"
+
+# All five regimes must be run — do not drop any.
+# Manifest CSVs are written by: experiments/c2_build_manifests.py
+# Keys must match experiment names exactly.
+regimes:
+  A:
+    train_csv: outputs/manifests/A_train.csv
+    val_csv:   outputs/manifests/A_val.csv
+  B_pure:
+    train_csv: outputs/manifests/B_pure_train.csv
+    val_csv:   outputs/manifests/B_pure_val.csv
+  B_mix:
+    train_csv: outputs/manifests/B_mix_train.csv
+    val_csv:   outputs/manifests/B_mix_val.csv
+  C_pure:
+    train_csv: outputs/manifests/C_pure_train.csv
+    val_csv:   outputs/manifests/C_pure_val.csv
+  C_mix:
+    train_csv: outputs/manifests/C_mix_train.csv
+    val_csv:   outputs/manifests/C_mix_val.csv
+
+seed: 42   # headline run; multi-seed runs use [42, 123, 235] in c4_dl_quartile
+
+# Training protocol — values match the actual headline run (launch_pipeline.sh).
+# See ORIGINAL_PARAMS.md for sources.  DO NOT change without updating that file.
+training:
+  backbone: efficientnet_b4   # timm model name
+  input_size: 380             # B4 native resolution
+  max_epochs: 20
+  batch_size: 16              # launch_pipeline.sh BATCH_SIZE=16 (actual run)
+  loss: bce                   # BCEWithLogitsLoss + class-balanced sampler
+  jpeg_quality_range: [75, 98]  # per-image randomisation (logged in manifest)
+
+optimizer:
+  type: AdamW
+  lr: 3.0e-4                  # launch_pipeline.sh LR=3e-4 (actual run)
+  weight_decay: 1.0e-4
+
+scheduler:
+  type: cosine_warmup
+  warmup_epochs: 1

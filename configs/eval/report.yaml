@@ -1,0 +1,99 @@
+# configs/eval/report.yaml
+# =========================
+# Configuration for experiment G — report layer (tables + figures + RESULTS.md).
+# Used by: experiments/g_report.py
+#
+# All paths below can be overridden by THESIS_OUTPUT_ROOT env var.
+# The report phase is CPU-only — no GPU or checkpoints needed.
+
+output_root: outputs
+
+# Inference CSVs directory — written by d_eval.py
+preds_dir: outputs/d_eval/predictions
+
+# DiskCache root — written by d_eval.py (for reliability diagrams)
+cache_root: outputs/d_eval/_cache
+
+# Long-form robustness CSV — written by e_robustness.py
+robustness_csv: outputs/e_robustness/robustness_grid.csv
+
+# T3 cross-dataset AUC CSV (used for bar plot; comes from tables_csv/T3.csv)
+t3_metrics_csv: ""   # set after first report run
+
+# Datasets for reliability diagrams
+calibration_datasets:
+  - celebdf
+  - dfdc
+  - dff
+
+# ── Table assignments ──────────────────────────────────────────────────────────
+# Each key matches a build_T<N> function in src/report/tables.py.
+# Omit a key to skip that table.
+
+table_assignments:
+
+  # T1: Stage 1 video-level on FF++ test partition
+  T1:
+    - RGB-Only
+    - Residual-Only
+    - Late-Fusion
+
+  # T2: Stage 1 fixed-fusion variants (5-seed mean ± std)
+  T2:
+    baselines:
+      - RGB-Only
+      - Residual-Only
+      - Late-Fusion
+    fixed:
+      StatNoise-Fusion: []   # populate with per-seed regime names after training
+      ResAware-Fusion:  []
+
+  # T3: Stage 1 cross-dataset AUC
+  T3:
+    - RGB-Only
+    - Residual-Only
+    - Late-Fusion
+
+  # T4: Stage 1 robustness (JPEG + blur subset)
+  T4:
+    - RGB-Only
+    - Late-Fusion
+
+  # T5: Wilcoxon signed-rank tests (Bonferroni-corrected)
+  # Each entry: {dataset_label, manifest_key, regime_A, regime_B, level}
+  T5:
+    - dataset_label: FF++
+      manifest_key:  FF++_stage1
+      regime_A:      RGB-Only
+      regime_B:      Late-Fusion
+      level:         video
+
+  # T6: Stage 2 five-regime cross-dataset AUC
+  T6:
+    - A
+    - B_pure
+    - B_mix
+    - C_pure
+    - C_mix
+
+  # T7: Stage 2 calibration (ECE + Brier)
+  T7:
+    - A
+    - B_pure
+    - B_mix
+    - C_pure
+    - C_mix
+
+  # T8: dL-quartile FF++ per-method breakdown
+  T8:
+    highdl_regime: HIGHDL
+    lowdl_regime:  LOWDL
+
+  # T9: dL-quartile Celeb-DF aggregation strategy comparison
+  T9:
+    highdl_regime: HIGHDL
+    lowdl_regime:  LOWDL
+
+  # T10: T-SBI pair-sampling statistics
+  T10:
+    tsbi_labels_csv: outputs/tsbi_labels.csv

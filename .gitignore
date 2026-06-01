@@ -1,0 +1,124 @@
+cached_files/
+# ──────────────────────────────────────────────────────────────────────────────
+# Old research code (scripts/ kept for reference but not tracked)
+# ──────────────────────────────────────────────────────────────────────────────
+scripts/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Original experiment artifacts (large checkpoints, CSVs, figures from old runs)
+# ──────────────────────────────────────────────────────────────────────────────
+artifacts/stage1/
+artifacts/stage2/
+
+# Keep model weights — they are needed for reproduction and are small binaries
+# artifacts/models_weights/   ← tracked
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CLI history and session logs
+# ──────────────────────────────────────────────────────────────────────────────
+cli_history_and_logs/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pipeline outputs (generated; never commit generated artefacts)
+# ──────────────────────────────────────────────────────────────────────────────
+outputs/
+.cache/
+
+# Raw corpus data (tens/hundreds of GB — never in git)
+data/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Python runtime
+# ──────────────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+39venv/
+36venv/
+*venv*/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Testing and coverage
+# ──────────────────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Large binary / data files (if accidentally placed at repo root)
+# ──────────────────────────────────────────────────────────────────────────────
+*.pt
+*.pth
+*.ckpt
+*.tar
+*.tar.gz
+*.zip
+*.npz
+*.npy
+*.parquet
+*.h5
+*.hdf5
+
+# Exception: keep the model weights that ship with the repo
+# !artifacts/models_weights/*.pth
+# !artifacts/models_weights/*.tar
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Images and videos (generated figures go in outputs/, not tracked)
+# ──────────────────────────────────────────────────────────────────────────────
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.avi
+
+# Exception: keep any images committed intentionally to docs/
+!docs/**/*.png
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Editors and OS
+# ──────────────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Windows Zone.Identifier sidecar files (created when downloading on Windows)
+*:Zone.Identifier
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Jupyter notebooks (raw research notebooks excluded; clean ones can be added)
+# ──────────────────────────────────────────────────────────────────────────────
+*.ipynb
+.ipynb_checkpoints/
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Misc
+# ──────────────────────────────────────────────────────────────────────────────
+*.log
+*.out
+*.err
+*.pid
+*.sock
+.env
+.env.*

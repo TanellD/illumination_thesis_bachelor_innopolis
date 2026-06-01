@@ -1,0 +1,45 @@
+# configs/eval/f_taxonomy.yaml
+# ==============================
+# F.1-F.4 — Failure taxonomy configuration.
+# Used by: experiments/f_taxonomy.py
+
+output_root: outputs
+
+# Manifests (for attribute extraction)
+manifests:
+  CelebDF: outputs/crops/celebdf/manifest.csv
+  DFDC:    outputs/crops/dfdc/manifest.csv
+  DFF:     outputs/crops/dff/manifest.csv
+  FF++:    outputs/crops/ff++/manifest.csv
+
+# DiskCache root written by d_eval.py
+inference_cache: outputs/d_eval/_cache
+
+# Which models to analyse (must match DiskCache keys from d_eval)
+models:
+  - RGB-Only
+  - Residual-Only
+  - Late-Fusion
+  - B_mix
+  - C_mix
+
+# Attribute axis columns to run chi-square on (F.3)
+attribute_axes:
+  - blur_bin
+  - illum_bin
+  - illum_harshness
+  - pose_bin
+  - pitch_bin
+  - eye_state
+  - gaze_bin
+  - crop_tightness
+  - touches_edge
+
+# Decision threshold (default 0.5; also rerun at argmax-MCC)
+threshold: 0.5
+
+# Parquet checkpoint cadence for attribute extraction
+checkpoint_every: 5000
+
+# Workers for attribute extraction (MediaPipe not thread-safe: 1 per process)
+num_workers: 8

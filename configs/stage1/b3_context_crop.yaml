@@ -1,0 +1,36 @@
+# configs/stage1/b3_context_crop.yaml
+# =====================================
+# B.3 — Context-crop experiment (CLAUDE.md §B.3)
+#
+# Re-runs the bottleneck diagnostic on noise maps extracted with two bbox
+# expansion factors:
+#   tight:   1.3× (original pipeline default)
+#   context: 2.7× (captures blending boundary)
+#
+# Also reports corpus-wise SNR = |mean_real - mean_fake| / pooled_std
+# for both strategies.
+
+experiment: b3_context_crop
+
+# Source manifest (FF++ test split, must have full_frame_path or face_crop_path,
+# x1/y1/x2/y2, label, split columns).
+# Use the Stage 1 small corpus (~28k crops; test split ~3k)
+manifest: outputs/crops/ff++/manifest.csv
+
+# Noiseprint++ weights for noise extraction
+noise_weights: null   # null -> use path from paths.yaml or Laplacian fallback
+
+# Number of samples per dataset (matches thesis: 2000 per corpus)
+n_samples_ffpp:   2000
+n_samples_celebdf: 2000
+
+# Split to sample from
+split: test
+
+# Bbox expansion factors (do NOT change — these are the reported values)
+tight_expansion:   1.3
+context_expansion: 2.7
+
+# CV protocol
+n_folds: 5
+seed:    42

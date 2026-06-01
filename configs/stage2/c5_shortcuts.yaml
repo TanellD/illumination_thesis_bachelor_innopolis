@@ -1,0 +1,43 @@
+# configs/stage2/c5_shortcuts.yaml
+# =====================================
+# C.5 — Shortcut ablation diagnostics
+#
+# For each null variant, generates (real, null-output) pairs, trains
+# a one-epoch binary classifier, and records AUC.  Separability is
+# measured two-sided as |AUC - 0.5|.
+#
+# T-SBI variants (N0-N6):
+#   N0 JPEG round-trip only
+#   N1 transfer_self  (src == tgt)
+#   N2 transfer_adjacent (adjacent frames)
+#   N3 mask_only  (tgt->tgt through mask, no transfer)
+#   N4 align_only (warp src, no illumination transfer)
+#   N5_<mode> per-mode breakdown (5 variants)
+#   N6 full T-SBI
+#
+# SBI variants (P0-P5) — uses src/sbi/generator.py
+#
+# Data source: real crops from FF++ test split (n_videos real videos)
+
+experiment: c5_shortcuts
+
+data_dir: outputs/crops/ff++   # manifest.csv must be here
+
+# How many real videos to sample
+n_videos: 80
+per_video: 5       # shortcut crops per video
+epochs:   1        # one-epoch classifier (matches thesis)
+batch_size: 16
+
+# Temporal gap for N2/N4/N6
+min_gap_sec: 0.8
+max_gap_sec: 5.0
+
+# Transfer modes for N5 (per-mode breakdown)
+modes: [reinhard, histmatch, lowfreq, intrinsic, gainmap]
+
+seed: 42
+
+# Which variant sets to run (default: both)
+run_tsbi: true
+run_sbi:  true

@@ -1,0 +1,40 @@
+experiment: eval
+description: "Shared evaluation configuration for both stages"
+
+# Metric suite (D.1) — keys must match exactly
+metrics:
+  - auc
+  - eer
+  - fpr_at_tpr95
+  - ece
+  - brier
+
+ece_bins: 15
+
+# Video-level aggregation strategies (D.2)
+video_strategies:
+  - mean
+  - max
+  - vote
+
+# Threshold sweep (D.3)
+threshold_sweep:
+  n_thresholds: 99
+  range: [0.01, 0.99]
+  report: [bal_acc, mcc, youden_j]
+  # F1 is deliberately excluded from cross-dataset comparison
+
+# Bootstrap CIs (D.5)
+bootstrap:
+  n_resamples: 1000
+  confidence_level: 0.95
+  resample_unit:
+    default: video      # resample over videos for cross-dataset sets
+    dff: sample         # DFF is image-only; resample over samples
+
+# Cross-seed aggregation (D.4)
+aggregation:
+  statistic: mean       # arithmetic mean across seeds
+  uncertainty: std      # unbiased sample std
+  wilcoxon_bonferroni: true
+  bonferroni_n: 4       # number of datasets tested

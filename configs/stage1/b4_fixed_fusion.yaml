@@ -1,0 +1,40 @@
+# configs/stage1/b4_fixed_fusion.yaml
+# =====================================
+# B.4 — Fixed-fusion variants: StatNoise-Fusion + ResAware-Fusion (5 seeds each)
+#
+# Both models are drop-in replacements for the Late-Fusion backbone.
+# They share the same training protocol as B.1 (§3.6), with the only
+# difference being which fusion branch is used.
+
+experiment: b4_fixed_fusion
+
+models:
+  - StatNoise-Fusion
+  - ResAware-Fusion
+
+seeds: [42, 123, 456, 789, 1337]
+
+training:
+  max_epochs: 30
+  warmup_epochs: 3
+  patience: 7
+  grad_clip: 1.0
+  batch_size: 32
+  input_size: 299
+  loss: class_weighted_ce   # do not change
+
+optimizer:
+  type: AdamW
+  lr: 1.0e-3                  # matches B.1 actual run (training_models.py config['lr'] = 1e-3)
+  weight_decay: 1.0e-4
+
+scheduler:
+  type: ReduceLROnPlateau
+  mode: max
+  factor: 0.5
+  patience: 3
+  min_lr: 1.0e-6
+
+noise:
+  weights: null   # null = use path from paths.yaml or Laplacian fallback
+  input_size: 299

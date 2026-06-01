@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "thesis-pipeline"
+version = "0.1.0"
+description = "Reproducible pipeline for Illumination & Imaging Physics Invariants — Photometric Forensics"
+requires-python = ">=3.9"
+
+# Runtime dependencies. Versions pinned to major+minor to match the
+# environment that produced the thesis results (Ubuntu 20.04, CUDA 12.6).
+# See requirements.txt for the exact versions used in the original runs.
+dependencies = [
+    # Deep learning
+    "torch==2.2.2",
+    "torchvision==0.17.2",
+    "torchaudio==2.2.2",
+    "timm==0.9.16",                    # EfficientNet-B4 (Stage 2)
+
+    # Face detection
+    "facenet-pytorch==2.6.0",          # MTCNN
+
+    # Landmarks & masks
+    "mediapipe==0.10.18",              # FaceMesh for T-SBI masks (see KNOWN_QUIRKS #13)
+    "sentencepiece==0.1.99",           # required co-dep for mediapipe 0.10.18
+
+    # Image processing
+    "opencv-python==4.9.0.80",
+    "Pillow==10.2.0",
+    "scikit-image==0.22.0",
+
+    # Data / numerics
+    "numpy==1.26.4",
+    "pandas==2.2.1",
+    "scipy==1.12.0",
+    "scikit-learn==1.4.1.post1",
+
+    # Config & utilities
+    "PyYAML==6.0.1",
+    "tqdm==4.66.2",
+    "pyarrow==15.0.2",         # parquet I/O for taxonomy attributes
+
+    # Statistics
+    "statsmodels==0.14.1",     # contingency tests (chi-square, Cramér's V)
+
+    # Visualisation (analysis phase only — no GPU needed)
+    "matplotlib==3.8.3",
+    "seaborn==0.13.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.1.1",
+    "pytest-cov==5.0.0",
+    "ruff==0.3.4",
+    "mypy==1.9.0",
+]
+
+[project.scripts]
+# Thin wrappers so experiments can be run as `thesis-<name>` after `pip install -e .`
+# Block 1 — Data
+thesis-crop        = "experiments.a2_crop:main"
+thesis-noise-pre   = "experiments.a5_noise_precompute:main"
+# Block 3 — Stage 1
+thesis-b1          = "experiments.b1_ablation:main"
+thesis-b2          = "experiments.b2_bottleneck:main"
+thesis-b3          = "experiments.b3_context_crop:main"
+thesis-b4          = "experiments.b4_fixed_fusion:main"
+# Block 4 — Stage 2
+thesis-sbi         = "experiments.c1_generate_sbi:main"
+thesis-tsbi        = "experiments.c1_generate_tsbi:main"
+thesis-manifests   = "experiments.c2_build_manifests:main"
+thesis-train       = "experiments.c3_train_regimes:main"
+thesis-dlquartile  = "experiments.c4_dl_quartile:main"
+thesis-shortcuts   = "experiments.c5_shortcuts:main"
+# Block 5 — Evaluation
+thesis-eval        = "experiments.d_eval:main"
+thesis-robustness  = "experiments.e_robustness:main"
+thesis-taxonomy    = "experiments.f_taxonomy:main"
+# Block 6 — Report
+thesis-g-report    = "experiments.g_report:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "experiments*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]   # line length handled by formatter
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"

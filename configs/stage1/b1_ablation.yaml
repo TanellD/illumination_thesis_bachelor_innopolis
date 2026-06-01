@@ -1,0 +1,36 @@
+experiment: b1_ablation
+description: "Three-model ablation: RGB-Only, Residual-Only, Late-Fusion (5 seeds)"
+
+models:
+  - RGB-Only
+  - Residual-Only
+  - Late-Fusion
+
+seeds: [42, 123, 456, 789, 1337]
+
+# Training protocol (§3.6 of thesis)
+training:
+  max_epochs: 30
+  warmup_epochs: 3
+  unfreeze_epochs: [3, 6]   # progressive backbone unfreezing
+  patience: 7               # early stopping on val macro-F1
+  grad_clip: 1.0
+  batch_size: 32
+  input_size: 299
+  loss: class_weighted_ce   # do not change
+
+optimizer:
+  type: AdamW
+  lr: 1.0e-3                  # training_models.py config['lr'] = 1e-3 (actual run)
+  weight_decay: 1.0e-4
+
+scheduler:
+  type: ReduceLROnPlateau
+  mode: max                 # maximise val macro-F1
+  factor: 0.5
+  patience: 3
+  min_lr: 1.0e-6
+
+noise:
+  weights: null             # null = use path from paths.yaml
+  input_size: 299

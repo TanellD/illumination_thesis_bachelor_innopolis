@@ -1,0 +1,59 @@
+# paths.yaml
+# ==========
+# Single source of truth for all filesystem paths used by the pipeline.
+#
+# Every value can be overridden by the corresponding environment variable.
+# Environment variables take precedence over values in this file.
+#
+# Usage in Python:
+#   from src.utils.paths import load_paths
+#   p = load_paths()          # reads this file + env overrides
+#   p.data.ff_plus_plus       # -> Path object
+#
+# Relative paths are resolved relative to the repo root (the directory
+# containing this file). Absolute paths are used as-is.
+
+# ── Raw corpus roots ─────────────────────────────────────────────────────────
+# Set these to wherever you unpacked the datasets. The pipeline never writes
+# into these directories.
+data:
+  ff_plus_plus: /data/faceforensics    # env: THESIS_FFPP_ROOT
+  celeb_df:     /data/celebdf2         # env: THESIS_CELEBDF_ROOT
+  dfdc:         /data/dfdc             # env: THESIS_DFDC_ROOT
+  dff:          /data/deepfakeface     # env: THESIS_DFF_ROOT
+
+# ── Pipeline outputs ─────────────────────────────────────────────────────────
+# All generated artefacts (crops, noise maps, manifests, checkpoints, figures,
+# tables) are written here. Sub-directories are created automatically.
+output:
+  root:    outputs/                    # env: THESIS_OUTPUT_ROOT
+  cache:   .cache/                     # env: THESIS_CACHE_ROOT
+  # Layout under output.root (derived automatically — do not edit):
+  #   outputs/
+  #     crops/ff++/          face crops + manifests (A.2)
+  #     crops/celebdf/
+  #     crops/dfdc/
+  #     crops/dff/
+  #     noise/ff++/          precomputed noise maps (A.5)
+  #     noise/celebdf/
+  #     noise/dfdc/
+  #     sbi/                 classic SBI crops + CSV (C.1)
+  #     tsbi/                T-SBI crops + CSV (C.1)
+  #     manifests/           per-regime training manifests (C.2)
+  #     checkpoints/         model checkpoints per experiment
+  #     predictions/         per-frame prediction CSVs (inference pass)
+  #     figures/             all thesis figures
+  #     tables/              all thesis tables (CSV + LaTeX)
+  #     RESULTS.md
+
+# ── Pretrained weights ────────────────────────────────────────────────────────
+weights:
+  noiseprint:    artifacts/models_weights/noiseprintplusplus_weights.pth  # env: THESIS_NOISEPRINT_WEIGHTS
+  sbi_baseline:  artifacts/models_weights/FFc23.tar                       # env: THESIS_SBI_WEIGHTS
+
+# ── Tiny-corpus fixture ───────────────────────────────────────────────────────
+# Used by `make tiny`. Points to the pre-built small corpus for smoke tests.
+# Build it once with: python tests/fixtures/build_tiny_corpus.py
+tiny:
+  root:     tests/fixtures/tiny_corpus/   # env: THESIS_TINY_ROOT
+  manifest: tests/fixtures/tiny_corpus/manifest.csv

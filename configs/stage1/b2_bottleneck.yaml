@@ -1,0 +1,17 @@
+experiment: b2_bottleneck
+description: "Seven-level bottleneck diagnostic (L1-L7) via 5-fold CV on 3000 FF++ test samples"
+
+n_samples: 3000
+split: test
+n_folds: 5
+seed: 42
+
+# All seven levels must be run — do not drop any
+levels:
+  - L1   # logistic regression on mean |noise|
+  - L2   # logistic regression on 6 scalar stats
+  - L3   # small MLP on 6 stats
+  - L4   # logistic regression on InstanceNorm-pooled noise
+  - L5   # logistic regression on raw-pooled noise
+  - L6   # 2-layer ConvNet on raw noise
+  - L7   # 2-layer ConvNet with InstanceNorm before first conv
