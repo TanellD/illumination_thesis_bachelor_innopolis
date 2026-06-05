@@ -11,7 +11,9 @@ output_root: outputs
 # Inference CSVs directory — written by d_eval.py
 preds_dir: outputs/d_eval/predictions
 
-# DiskCache root — written by d_eval.py (for reliability diagrams)
+# DiskCache root — written by d_eval.py (for reliability diagrams).
+# d_eval writes to outputs/d_eval/<hash>/_cache; the script auto-discovers
+# the most recent one if this path doesn't exist directly.
 cache_root: outputs/d_eval/_cache
 
 # Long-form robustness CSV — written by e_robustness.py
@@ -20,11 +22,12 @@ robustness_csv: outputs/e_robustness/robustness_grid.csv
 # T3 cross-dataset AUC CSV (used for bar plot; comes from tables_csv/T3.csv)
 t3_metrics_csv: ""   # set after first report run
 
-# Datasets for reliability diagrams
+# Datasets for reliability diagrams.
+# Must match the dataset keys used in d_eval.yaml manifests (DiskCache uses these as-is).
 calibration_datasets:
-  - celebdf
-  - dfdc
-  - dff
+  - CelebDF
+  - DFDC
+  - DFF
 
 # ── Table assignments ──────────────────────────────────────────────────────────
 # Each key matches a build_T<N> function in src/report/tables.py.

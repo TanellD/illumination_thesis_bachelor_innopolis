@@ -53,20 +53,53 @@ def main() -> None:
         cfg = yaml.safe_load(f)
 
     cfg_hash = hashlib.sha256(Path(args.config).read_bytes()).hexdigest()[:12]
-    if "THESIS_OUTPUT_ROOT" in os.environ:
-        cfg["output_root"] = os.environ["THESIS_OUTPUT_ROOT"]
-
-    out_dir = Path(cfg["output_root"]) / "b2_bottleneck" / cfg_hash
+    out_root_str = os.environ.get("THESIS_OUTPUT_ROOT", cfg.get("output_root", "outputs"))
+    out_dir = Path(out_root_str) / "b2_bottleneck" / cfg_hash
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if (out_dir / "bottleneck_results.csv").exists() and not args.force:
         logger.info(f"Output already exists at {out_dir}. Use --force to rerun.")
         sys.exit(0)
 
-    manifest = cfg["manifest"]
+    # Resolve manifest: config key > derive from output_root
+    # The bottleneck diagnostic requires noise_crop_path — use the noise manifest.
+    if "manifest" in cfg:
+        manifest = cfg["manifest"]
+        if not os.path.isabs(manifest):
+            manifest = manifest.replace("outputs/", out_root_str.rstrip("/") + "/")
+    else:
+        # Default: noise manifest (has noise_crop_path); fall back to crops manifest
+        noise_manifest = os.path.join(out_root_str, "noise", "ff++", "manifest.csv")
+        manifest = noise_manifest if os.path.exists(noise_manifest) else \
+                   os.path.join(out_root_str, "crops", "ff++", "manifest.csv")
+
+    if not os.path.exists(manifest):
+        logger.error(
+            f"Manifest not found: {manifest}\n"
+            "The bottleneck diagnostic needs noise_crop_path.\n"
+            "Run: make noise-pre   (then make b2)"
+        )
+        sys.exit(1)
+
+    # Quick check: does the manifest have noise_crop_path?
+    import pandas as pd
+    cols = pd.read_csv(manifest, nrows=0).columns.tolist()
+    if "noise_crop_path" not in cols:
+        logger.error(
+            f"Manifest {manifest} has no noise_crop_path column.\n"
+            "Point b2_bottleneck.yaml at outputs/noise/ff++/manifest.csv\n"
+            "or run: make noise-pre"
+        )
+        sys.exit(1)
+
+    # Allow THESIS_FFPP_ROOT to override the data_dir prefix in the path
     if "THESIS_FFPP_ROOT" in os.environ:
-        manifest = manifest.replace(
-            "/data/faceforensics", os.environ["THESIS_FFPP_ROOT"])
+        cfg_data_dir = cfg.get("data_dir", "/data/faceforensics")
+        manifest = str(Path(manifest).as_posix()).replace(
+            Path(cfg_data_dir).as_posix(),
+            Path(os.environ["THESIS_FFPP_ROOT"]).as_posix()
+        )
+        manifest = str(Path(manifest))
 
     from src.noise.bottleneck import run_bottleneck_diagnostic
 

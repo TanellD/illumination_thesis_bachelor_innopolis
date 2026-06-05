@@ -55,6 +55,11 @@ logger = logging.getLogger(__name__)
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="T-SBI generation")
     p.add_argument("--config", required=True)
+    p.add_argument("--out-csv", default=None,
+                   help="Also copy the output CSV to this flat path "
+                        "(e.g. outputs/tsbi_labels.csv) for downstream scripts.")
+    p.add_argument("--out-dir", default=None,
+                   help="Override crop output directory.")
     p.add_argument("--force", action="store_true")
     return p.parse_args()
 
@@ -66,14 +71,34 @@ def main() -> None:
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
-    data_dir   = os.environ.get("THESIS_FFPP_ROOT", cfg["data_dir"])
+    # Resolution order: env var > config key > paths.yaml
+    if "THESIS_FFPP_ROOT" in os.environ:
+        data_dir = os.environ["THESIS_FFPP_ROOT"]
+    elif "data_dir" in cfg:
+        data_dir = cfg["data_dir"]
+    else:
+        try:
+            from src.utils.paths import load_paths
+            data_dir = str(load_paths().data.ff_plus_plus)
+        except Exception:
+            raise KeyError(
+                "FF++ data_dir not found. Set THESIS_FFPP_ROOT env var, "
+                "add 'data_dir:' to configs/stage2/tsbi.yaml, "
+                "or set data.ff_plus_plus in paths.yaml"
+            )
     output_dir = os.environ.get("THESIS_OUTPUT_ROOT",
-                                cfg.get("output_dir", "outputs/tsbi"))
+                                cfg.get("output_dir", "outputs"))
     cfg_hash = hashlib.sha256(Path(args.config).read_bytes()).hexdigest()[:12]
-    out_root = Path(output_dir) / "c1_tsbi" / cfg_hash
+    # Crop images go into content-hashed subdir; CSV also copied to flat path
+    out_root = Path(args.out_dir) if args.out_dir else \
+               Path(output_dir) / "c1_tsbi" / cfg_hash
     out_root.mkdir(parents=True, exist_ok=True)
 
+    # Canonical CSV inside the hashed dir
     out_csv = str(out_root / "tsbi_labels.csv")
+    # Flat copy path for downstream scripts (e.g. make manifests)
+    flat_csv = args.out_csv or str(Path(output_dir) / "tsbi_labels.csv")
+
     if Path(out_csv).exists() and not args.force:
         logger.info(f"Output already exists at {out_csv}. Use --force to rerun.")
         sys.exit(0)
@@ -285,6 +310,14 @@ def main() -> None:
         _FaceMeshSingleton.cleanup()
     except Exception:
         pass
+
+    # Copy to flat path so downstream scripts (make manifests) can find it
+    if flat_csv != out_csv:
+        import shutil
+        Path(flat_csv).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(out_csv, flat_csv)
+        logger.info(f"Copied CSV to {flat_csv}")
+
     logger.info(f"Done. Outputs in {out_root}")
 
 

@@ -37,4 +37,9 @@ scheduler:
 
 noise:
   weights: null   # null = use path from paths.yaml or Laplacian fallback
+
+# Manifest paths — written by experiments/a2_crop.py + a5_noise_precompute.py
+manifests:
+  ff++:    outputs/crops/ff++/manifest.csv
+  celebdf: outputs/crops/celebdf/manifest.csv
   input_size: 299

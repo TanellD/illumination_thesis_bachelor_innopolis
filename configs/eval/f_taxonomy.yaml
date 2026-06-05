@@ -12,10 +12,15 @@ manifests:
   DFF:     outputs/crops/dff/manifest.csv
   FF++:    outputs/crops/ff++/manifest.csv
 
-# DiskCache root written by d_eval.py
+# DiskCache root written by d_eval.py.
+# d_eval writes to outputs/d_eval/<hash>/_cache — use glob to find it,
+# or set this to the exact path after running make eval.
+# The script will auto-discover the most recent d_eval cache if this path
+# doesn't exist directly.
 inference_cache: outputs/d_eval/_cache
 
 # Which models to analyse (must match DiskCache keys from d_eval)
+# These must match exactly the model_name keys used in d_eval.yaml checkpoints.
 models:
   - RGB-Only
   - Residual-Only

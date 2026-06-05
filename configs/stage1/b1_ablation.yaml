@@ -6,7 +6,9 @@ models:
   - Residual-Only
   - Late-Fusion
 
-seeds: [42, 123, 456, 789, 1337]
+# seeds: [42, 123, 456, 789, 1337]
+seeds: [42, 123]
+# seeds: [1, 2]
 
 # Training protocol (§3.6 of thesis)
 training:
@@ -34,3 +36,18 @@ scheduler:
 noise:
   weights: null             # null = use path from paths.yaml
   input_size: 299
+
+# Manifest paths for training and evaluation.
+#
+# FF++ and Celeb-DF: use the NOISE manifest (outputs/noise/*/manifest.csv)
+# because it contains the noise_crop_path column needed by Residual-Only and
+# Late-Fusion.  This file is written by: make noise-pre
+#
+# DFDC and DFF: use the crop manifest — these are evaluation-only datasets
+# and noise precompute is optional for them; b1_ablation.py will automatically
+# upgrade to the noise manifest if it exists (outputs/noise/*/manifest.csv).
+manifests:
+  ff++:    outputs/noise/ff++/manifest.csv
+  celebdf: outputs/noise/celebdf/manifest.csv
+  dfdc:    outputs/crops/dfdc/manifest.csv
+  dff:     outputs/crops/dff/manifest.csv

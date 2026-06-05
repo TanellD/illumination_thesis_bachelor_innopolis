@@ -120,6 +120,50 @@ def _run_inference(model, loader, device, tiny: bool = False):
             sources or [""] * len(scores))
 
 
+def _discover_ckpt(configured_path: str, model_name: str,
+                    out_root: str) -> str:
+    """Return a checkpoint path that actually exists.
+
+    Search order:
+      1. The exact path from the config (after resolving against out_root).
+      2. Glob for best.pt under <out_root>/**/<model_name>_seed*/best.pt
+         (handles the content-hashed subdir layout written by training scripts).
+      3. Glob for best_<model_name>_seed*.pt under <out_root>/**/checkpoints/
+         (handles the b1_ablation layout).
+    """
+    # Resolve relative paths against out_root
+    resolved = configured_path
+    if configured_path and not os.path.isabs(configured_path):
+        resolved = configured_path.replace("outputs/", out_root.rstrip("/") + "/")
+
+    if resolved and os.path.exists(resolved):
+        return resolved
+
+    # Glob patterns for content-hashed layouts
+    safe_name = model_name.replace(" ", "_").replace("-", "-")
+    patterns = [
+        # c3_train_regimes layout: outputs/c3_regimes/<hash>/<regime>_seed*/best.pt
+        str(Path(out_root) / "c3_regimes" / "*" / f"{safe_name}_seed*" / "best.pt"),
+        # b1_ablation layout: outputs/b1_ablation/<hash>/checkpoints/best_<model>_seed*.pt
+        str(Path(out_root) / "b1_ablation" / "*" / "checkpoints" / f"best_{safe_name}_seed*.pt"),
+        # c4_dl_quartile layout: outputs/c4_dl_quartile/<hash>/<variant>_seed*/best.pt
+        str(Path(out_root) / "c4_dl_quartile" / "*" / f"{safe_name}_seed*" / "best.pt"),
+        # b4_fixed_fusion layout: outputs/b4_fixed_fusion/<hash>/checkpoints/<model>_seed*.pt
+        str(Path(out_root) / "b4_fixed_fusion" / "*" / "checkpoints" / f"{safe_name}_seed*.pt"),
+    ]
+    import glob as _glob
+    for pattern in patterns:
+        hits = sorted(_glob.glob(pattern))
+        if hits:
+            # Pick seed42 if available, else the first hit
+            seed42 = [h for h in hits if "seed42" in h]
+            chosen = seed42[0] if seed42 else hits[0]
+            logger.info(f"  Discovered checkpoint for {model_name}: {chosen}")
+            return chosen
+
+    return ""   # not found
+
+
 def main() -> None:
     args = _parse_args()
     t0   = time.time()
@@ -131,11 +175,10 @@ def main() -> None:
     with open(ckpt_cfg_path) as f:
         ckpt_cfg = yaml.safe_load(f)
 
-    if "THESIS_OUTPUT_ROOT" in os.environ:
-        cfg["output_root"] = os.environ.get("THESIS_OUTPUT_ROOT", "outputs")
-
+    out_root_str = os.environ.get("THESIS_OUTPUT_ROOT",
+                                   cfg.get("output_root", "outputs"))
     cfg_hash = hashlib.sha256(Path(args.config).read_bytes()).hexdigest()[:12]
-    out_dir  = Path(cfg.get("output_root", "outputs")) / "d_eval" / cfg_hash
+    out_dir  = Path(out_root_str) / "d_eval" / cfg_hash
     out_dir.mkdir(parents=True, exist_ok=True)
     preds_dir = out_dir / "predictions"
     preds_dir.mkdir(exist_ok=True)
@@ -143,7 +186,25 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     checkpoints = ckpt_cfg.get("checkpoints", {})
-    manifests   = ckpt_cfg.get("manifests",   {})
+    # Resolve manifest paths against out_root
+    # manifests can be either:
+    #   dataset_name: path_string           (legacy)
+    #   dataset_name: {csv: path, split: X} (new — supports per-dataset split)
+    raw_manifests = ckpt_cfg.get("manifests", {})
+    manifests = {}   # {name: (csv_path, split)}
+    for k, v in raw_manifests.items():
+        if isinstance(v, dict):
+            csv_path = v.get("csv", "")
+            split    = v.get("split", "test")
+        else:
+            csv_path = str(v)
+            # CelebDF/DFDC/DFF have no test split — infer from dataset name
+            split = "test" if "ff++" in k.lower() or "ffpp" in k.lower() \
+                    else "all"
+        if not os.path.isabs(csv_path):
+            csv_path = csv_path.replace("outputs/",
+                                         out_root_str.rstrip("/") + "/")
+        manifests[k] = (csv_path, split)
 
     if not checkpoints:
         logger.error("No checkpoints defined. "
@@ -161,18 +222,31 @@ def main() -> None:
     from src.eval.cache import DiskCache
 
     cache = DiskCache(out_dir / "_cache")
-    val_transform = transforms.Compose([
-        transforms.Resize((330, 330)),
-        transforms.CenterCrop(299),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
-    ])
+
+    def _make_transform(family: str):
+        if family == "stage2":
+            # EfficientNet-B4: 380×380, ImageNet normalisation
+            return transforms.Compose([
+                transforms.Resize((380, 380)),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406],
+                                     [0.229, 0.224, 0.225]),
+            ])
+        # Stage 1: 299×299, [-1,1] normalisation
+        return transforms.Compose([
+            transforms.Resize((330, 330)),
+            transforms.CenterCrop(299),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        ])
 
     for model_name, model_spec in checkpoints.items():
         family    = model_spec["family"]
-        ckpt_path = model_spec["ckpt"]
-        if not os.path.exists(ckpt_path):
-            logger.warning(f"Checkpoint not found: {ckpt_path} — skipping {model_name}")
+        ckpt_path = _discover_ckpt(model_spec.get("ckpt", ""),
+                                    model_name, out_root_str)
+        if not ckpt_path:
+            logger.warning(f"Checkpoint not found for {model_name} — skipping. "
+                           f"Run the corresponding training step first.")
             continue
 
         logger.info(f"Loading {model_name} ({family}) from {ckpt_path}")
@@ -182,33 +256,55 @@ def main() -> None:
             logger.error(f"Failed loading {model_name}: {exc} — skipping")
             continue
 
-        for dataset_name, manifest_csv in manifests.items():
+        for dataset_name, (manifest_csv, eval_split) in manifests.items():
             if not os.path.exists(manifest_csv):
                 logger.warning(f"Manifest not found: {manifest_csv} — skipping")
                 continue
 
             pred_csv = str(preds_dir / f"{model_name}__{dataset_name}.csv")
-            if os.path.exists(pred_csv) and not args.force:
-                logger.info(f"  CACHED  {model_name} | {dataset_name}")
+            use_cache = (os.path.exists(pred_csv) and not args.force)
+            if use_cache:
                 df_pred = pd.read_csv(pred_csv)
-                s = df_pred["score"].to_numpy()
-                l = df_pred["label"].to_numpy().astype(np.int32)
-                vids = df_pred.get("video_id", pd.Series([""] * len(s))).tolist()
-                srcs = df_pred.get("source",   pd.Series([""] * len(s))).tolist()
-            else:
-                ds = FaceCropDataset.from_csv(manifest_csv, split="test",
-                                               transform=val_transform)
+                # Invalidate empty cache (e.g. from a previous run with wrong split)
+                if len(df_pred) == 0:
+                    logger.warning(f"  Cached CSV is empty for {model_name}|{dataset_name} "
+                                   f"— re-running inference")
+                    use_cache = False
+                else:
+                    logger.info(f"  CACHED  {model_name} | {dataset_name} "
+                                f"({len(df_pred)} rows)")
+                    s = df_pred["score"].to_numpy()
+                    l = df_pred["label"].to_numpy().astype(np.int32)
+                    vids = df_pred.get("video_id", pd.Series([""] * len(s))).tolist()
+                    srcs = df_pred.get("source",   pd.Series([""] * len(s))).tolist()
+                    # Re-save to cache with paths if not already there
+                    if "face_crop_path" in df_pred.columns:
+                        paths_cached = df_pred["face_crop_path"].tolist()
+                        if not cache.has_inference(model_name, dataset_name) or args.force:
+                            cache.save_inference(
+                                model_name, dataset_name, s, l,
+                                video_ids=np.array(vids, dtype=object),
+                                sources=np.array(srcs, dtype=object),
+                                paths=np.array(paths_cached, dtype=object))
+            if not use_cache:
+                ds = FaceCropDataset.from_csv(manifest_csv, split=eval_split,
+                                               transform=_make_transform(family))
                 loader = torch.utils.data.DataLoader(
                     ds, batch_size=32, shuffle=False, num_workers=0)
                 s, l, vids, srcs = _run_inference(model, loader, device, args.tiny)
+                # Extract face_crop_path from the dataset in the same order
+                paths = [str(ds.df.iloc[i]["face_crop_path"])
+                         for i in range(len(ds))][:len(s)]
                 df_pred = pd.DataFrame({
                     "score": s, "label": l,
                     "video_id": vids, "source": srcs,
+                    "face_crop_path": paths,
                 })
                 df_pred.to_csv(pred_csv, index=False)
                 cache.save_inference(model_name, dataset_name, s, l,
                                      video_ids=np.array(vids, dtype=object),
-                                     sources=np.array(srcs, dtype=object))
+                                     sources=np.array(srcs, dtype=object),
+                                     paths=np.array(paths, dtype=object))
 
             # Frame-level metrics
             fm = compute_metrics(l, s)

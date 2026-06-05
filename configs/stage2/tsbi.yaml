@@ -1,6 +1,10 @@
 experiment: tsbi_generation
 description: "T-SBI temporal pair generation with illumination gating"
 
+# Path to FF++ video root (directory containing original_sequences/ and
+# manipulated_sequences/).  Override with env var THESIS_FFPP_ROOT.
+data_dir: /data/faceforensics
+
 # Pair selection
 per_video: 10
 min_gap_sec: 0.8
@@ -24,4 +28,4 @@ jpeg_quality_range: [75, 98]   # sampled uniformly per crop
 transfer_mode: histmatch   # options: histmatch, reinhard, lowfreq, intrinsic, gainmap
 
 seed: 42
-splits: [train]
+splits: [train, val]

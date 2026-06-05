@@ -6,6 +6,13 @@ split: test
 n_folds: 5
 seed: 42
 
+# FF++ noise manifest — written by experiments/a5_noise_precompute.py
+# This file has the noise_crop_path column required by the bottleneck diagnostic.
+# Run `make noise-pre` before `make b2`.
+# Override output root with THESIS_OUTPUT_ROOT env var.
+manifest: outputs/noise/ff++/manifest.csv
+data_dir: /data/faceforensics   # override with THESIS_FFPP_ROOT
+
 # All seven levels must be run — do not drop any
 levels:
   - L1   # logistic regression on mean |noise|

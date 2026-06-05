@@ -70,18 +70,60 @@ def main() -> None:
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
-    if "THESIS_OUTPUT_ROOT" in os.environ:
-        cfg["output_root"] = os.environ["THESIS_OUTPUT_ROOT"]
+    out_root_str = os.environ.get("THESIS_OUTPUT_ROOT",
+                                   cfg.get("output_root", "outputs"))
+    cfg["output_root"] = out_root_str
 
     cfg_hash = hashlib.sha256(Path(args.config).read_bytes()).hexdigest()[:12]
-    out_dir  = Path(cfg["output_root"]) / "g_report" / cfg_hash
+    out_dir  = Path(out_root_str) / "g_report" / cfg_hash
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    preds_dir      = cfg.get("preds_dir",       str(out_dir / "predictions"))
-    cache_root     = cfg.get("cache_root",       "")
-    robustness_csv = cfg.get("robustness_csv",   "")
-    metrics_csv    = cfg.get("t3_metrics_csv",   "")  # for bar plot
-    datasets_calib = cfg.get("calibration_datasets", ["Celeb-DF", "DFDC", "DFF"])
+    # preds_dir: config value → resolve against out_root → auto-discover
+    _preds_cfg = cfg.get("preds_dir", "")
+    if _preds_cfg and not os.path.isabs(_preds_cfg):
+        _preds_cfg = _preds_cfg.replace("outputs/", out_root_str.rstrip("/") + "/")
+    if _preds_cfg and os.path.exists(_preds_cfg):
+        preds_dir = _preds_cfg
+    else:
+        import glob as _glob
+        _candidates = sorted(_glob.glob(
+            str(Path(out_root_str) / "d_eval" / "*" / "predictions")))
+        preds_dir = _candidates[-1] if _candidates else str(out_dir / "predictions")
+        if _candidates:
+            logger.info(f"Auto-discovered predictions dir: {preds_dir}")
+    # cache_root: resolve against out_root, then auto-discover hashed d_eval cache
+    _cache_cfg = cfg.get("cache_root", "")
+    if _cache_cfg and not os.path.isabs(_cache_cfg):
+        _cache_cfg = _cache_cfg.replace("outputs/", out_root_str.rstrip("/") + "/")
+    if _cache_cfg and os.path.exists(_cache_cfg):
+        cache_root = _cache_cfg
+    else:
+        import glob as _glob
+        _cache_hits = sorted(_glob.glob(
+            str(Path(out_root_str) / "d_eval" / "*" / "_cache")))
+        cache_root = _cache_hits[-1] if _cache_hits else ""
+        if cache_root:
+            logger.info(f"Auto-discovered inference cache: {cache_root}")
+
+    robustness_csv = cfg.get("robustness_csv", "")
+    if robustness_csv and not os.path.isabs(robustness_csv):
+        robustness_csv = robustness_csv.replace("outputs/",
+                                                 out_root_str.rstrip("/") + "/")
+    # Auto-discover if configured path doesn't exist
+    if not robustness_csv or not os.path.exists(robustness_csv):
+        import glob as _glob
+        _rob_hits = sorted(_glob.glob(
+            str(Path(out_root_str) / "e_robustness" / "*" / "robustness_grid.csv")))
+        if _rob_hits:
+            robustness_csv = _rob_hits[-1]
+            logger.info(f"Auto-discovered robustness CSV: {robustness_csv}")
+    # t3_metrics_csv: use configured path, or fall back to the T3 table just built
+    metrics_csv = cfg.get("t3_metrics_csv", "")
+    if not metrics_csv or not os.path.exists(metrics_csv):
+        _t3_candidate = str(out_dir / "tables_csv" / "T3.csv")
+        if os.path.exists(_t3_candidate):
+            metrics_csv = _t3_candidate
+    datasets_calib = cfg.get("calibration_datasets", ["CelebDF", "DFDC", "DFF"])
 
     fig_dir = out_dir / "figures"
     fig_dir.mkdir(exist_ok=True)

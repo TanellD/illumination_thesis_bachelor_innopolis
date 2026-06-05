@@ -50,11 +50,13 @@ def _fmt(x: float, decimals: int = 3) -> str:
 
 
 def _video_metrics(df: pd.DataFrame, strategy: str = "mean") -> dict:
+    n = len(df)
+    sources  = df["source"].astype(str).tolist()  if "source"   in df.columns else ["s"] * n
+    vids     = df["video_id"].astype(str).tolist() if "video_id" in df.columns else [str(i) for i in range(n)]
     v_s, v_l, _ = aggregate_to_video(
         df["score"].to_numpy(),
         df["label"].to_numpy().astype(int),
-        df["source"].astype(str).tolist(),
-        df["video_id"].astype(str).tolist(),
+        sources, vids,
         strategy=strategy,
     )
     return compute_metrics(v_l, v_s)
@@ -71,6 +73,10 @@ def _per_method_metrics(df: pd.DataFrame, level: str = "video") -> pd.DataFrame:
     """Per-FF++ manipulation method: (all reals) ∪ (fakes of that method)."""
     rows = []
     real_mask = df["label"].astype(int) == 1
+    # method column may be absent if pred CSV was written without it
+    if "method" not in df.columns:
+        df = df.copy()
+        df["method"] = "unknown"
     methods = sorted(
         set(df.loc[~real_mask, "method"].astype(str)) - {"unknown", ""}
     )

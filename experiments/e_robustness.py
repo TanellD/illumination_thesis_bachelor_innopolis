@@ -78,19 +78,27 @@ def _load_model(family: str, ckpt_path: str, device: torch.device):
 
 
 def _make_loader_factory(manifest_csv: str, batch_size: int, num_workers: int,
-                          target_size: int):
+                          target_size: int, family: str = "stage1_rgb",
+                          split: str = "test"):
     """Return a factory that creates a fresh DataLoader each call."""
     from torchvision import transforms
     from src.data.dataset import FaceCropDataset
-    tf = transforms.Compose([
-        transforms.Resize((int(target_size * 1.1), int(target_size * 1.1))),
-        transforms.CenterCrop(target_size),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
-    ])
+    if family == "stage2":
+        tf = transforms.Compose([
+            transforms.Resize((target_size, target_size)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ])
+    else:
+        tf = transforms.Compose([
+            transforms.Resize((int(target_size * 1.1), int(target_size * 1.1))),
+            transforms.CenterCrop(target_size),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        ])
 
     def factory():
-        ds = FaceCropDataset.from_csv(manifest_csv, split="test", transform=tf)
+        ds = FaceCropDataset.from_csv(manifest_csv, split=split, transform=tf)
         return torch.utils.data.DataLoader(
             ds, batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=True,
@@ -108,8 +116,9 @@ def main() -> None:
     if "THESIS_OUTPUT_ROOT" in os.environ:
         cfg["output_root"] = os.environ["THESIS_OUTPUT_ROOT"]
 
+    out_root_str = os.environ.get("THESIS_OUTPUT_ROOT", cfg.get("output_root", "outputs"))
     cfg_hash = hashlib.sha256(Path(args.config).read_bytes()).hexdigest()[:12]
-    out_dir  = Path(cfg["output_root"]) / "e_robustness" / cfg_hash
+    out_dir  = Path(out_root_str) / "e_robustness" / cfg_hash
     out_dir.mkdir(parents=True, exist_ok=True)
     out_csv  = out_dir / "robustness_grid.csv"
 
@@ -118,31 +127,70 @@ def main() -> None:
         sys.exit(0)
 
     device     = torch.device(cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
-    batch_size = cfg.get("batch_size", 32)
-    n_workers  = cfg.get("num_workers", 4)
+    batch_size = cfg.get("batch_size", 8)
+    n_workers  = cfg.get("num_workers", 0)
+
+    # Parse manifests: support both string and {csv, split} dict format
+    raw_manifests = cfg.get("manifests", {})
+    manifests = {}
+    for k, v in raw_manifests.items():
+        if isinstance(v, dict):
+            csv_path = v.get("csv", "")
+            split    = v.get("split", "test")
+        else:
+            csv_path = str(v)
+            split = "test" if "ff" in k.lower() else "all"
+        if not os.path.isabs(csv_path):
+            csv_path = csv_path.replace("outputs/", out_root_str.rstrip("/") + "/")
+        manifests[k] = (csv_path, split)
 
     from src.robustness.grid import run_robustness_grid
+
+    def _discover_ckpt(configured_path: str, model_name: str) -> str:
+        """Resolve checkpoint: config path → flat alias → glob in hashed dirs."""
+        path = configured_path
+        if path and not os.path.isabs(path):
+            path = path.replace("outputs/", out_root_str.rstrip("/") + "/")
+        if path and os.path.exists(path):
+            return path
+        import glob as _glob
+        safe = model_name.replace(" ", "_")
+        for pattern in [
+            str(Path(out_root_str) / "b1_ablation" / f"{safe}_seed*" / "best.pt"),
+            str(Path(out_root_str) / "c3_regimes"  / f"{safe}_seed*" / "best.pt"),
+            str(Path(out_root_str) / "b4_fixed_fusion" / "*" / "checkpoints" / f"{safe}_seed*.pt"),
+            str(Path(out_root_str) / "b1_ablation" / "*" / "checkpoints" / f"best_{safe}_seed*.pt"),
+        ]:
+            hits = sorted(_glob.glob(pattern))
+            if hits:
+                chosen = next((h for h in hits if "seed42" in h), hits[0])
+                logger.info(f"  Discovered checkpoint for {model_name}: {chosen}")
+                return chosen
+        return ""
 
     all_rows: list = []
     for model_name, model_cfg in cfg["checkpoints"].items():
         family    = model_cfg["family"]
-        ckpt_path = model_cfg["ckpt"]
+        ckpt_path = _discover_ckpt(model_cfg.get("ckpt", ""), model_name)
         target_sz = model_cfg.get("target_size", 380 if family == "stage2" else 299)
 
-        if not os.path.exists(ckpt_path):
-            logger.warning(f"Checkpoint not found: {ckpt_path} — skipping {model_name}")
+        if not ckpt_path:
+            logger.warning(f"Checkpoint not found for {model_name} — skipping. "
+                           f"Run the corresponding training step first.")
             continue
 
         logger.info(f"Loading {model_name} from {ckpt_path}")
         model = _load_model(family, ckpt_path, device)
 
-        for dataset_name, manifest_csv in cfg["manifests"].items():
+        for dataset_name, (manifest_csv, eval_split) in manifests.items():
             if not os.path.exists(manifest_csv):
                 logger.warning(f"Manifest not found: {manifest_csv} — skipping")
                 continue
-            logger.info(f"  Evaluating {model_name} on {dataset_name} ...")
+            logger.info(f"  Evaluating {model_name} on {dataset_name} "
+                        f"(split={eval_split}) ...")
             loader_factory = _make_loader_factory(
-                manifest_csv, batch_size, n_workers, target_sz)
+                manifest_csv, batch_size, n_workers, target_sz,
+                family=family, split=eval_split)
 
             partial_csv = str(out_dir / f"{model_name}__{dataset_name}.csv")
             df = run_robustness_grid(

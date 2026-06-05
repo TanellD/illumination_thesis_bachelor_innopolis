@@ -137,6 +137,14 @@ def main() -> None:
                     seed=seed,
                 )
 
+            # Write flat alias so d_eval.py finds it at the expected path:
+            # outputs/c4_dl_quartile/<variant>_seed<seed>/best.pt
+            flat_dir = Path(out_root) / "c4_dl_quartile" / f"{variant}_seed{seed}"
+            flat_dir.mkdir(parents=True, exist_ok=True)
+            if (run_dir / "best.pt").exists():
+                import shutil as _shutil
+                _shutil.copy2(str(run_dir / "best.pt"), str(flat_dir / "best.pt"))
+
             # Evaluate
             ckpt = torch.load(str(run_dir / "best.pt"), map_location=device)
             model = build_model(pretrained=False)
@@ -152,10 +160,12 @@ def main() -> None:
                     [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ])
 
+            # FF++ uses split='test'; CelebDF/DFDC/DFF use split='all'
             for ds_key, ds_csv in test_manifests.items():
                 if not os.path.exists(ds_csv):
                     continue
-                ds = FaceCropDataset.from_csv(ds_csv, split="test",
+                eval_split = "test" if "ff" in ds_key.lower() else "all"
+                ds = FaceCropDataset.from_csv(ds_csv, split=eval_split,
                                                transform=val_tf)
                 loader = torch.utils.data.DataLoader(
                     ds, batch_size=32, shuffle=False, num_workers=0)

@@ -151,14 +151,25 @@ def train_one_epoch(
     all_labels: list = []
     all_preds:  list = []
 
+    # Models that accept a second positional tensor (precomputed noise crop).
+    # ResidualOnly extracts noise internally — do NOT pass it as a second arg.
+    _model_takes_noise_arg = model_name.lower().replace("-", "_").replace(" ", "_") in (
+        "late_fusion", "statnoise_fusion", "resaware_fusion"
+    )
+
     for batch in loader:
-        # Support both 2-input (rgb+noise) and 1-input (rgb only) batches.
-        if len(batch) == 3 and isinstance(batch[0], torch.Tensor):
-            images, labels, _ = batch
-            inputs = (images.to(device),)
-        elif len(batch) == 4:
+        # Unpack batch regardless of source dataset type.
+        # NoiseCropDataset → (rgb, noise, label, vid)  [4 elements]
+        # FaceCropDataset  → (rgb, label, vid)          [3 elements]
+        if len(batch) == 4:
             rgb, noise, labels, _ = batch
-            inputs = (rgb.to(device), noise.to(device))
+            if _model_takes_noise_arg:
+                inputs = (rgb.to(device), noise.to(device))
+            else:
+                inputs = (rgb.to(device),)
+        elif len(batch) == 3 and isinstance(batch[0], torch.Tensor):
+            rgb, labels, _ = batch
+            inputs = (rgb.to(device),)
         else:
             inputs, labels = batch[:-1], batch[-1]
 
@@ -192,6 +203,7 @@ def evaluate(
     loader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
+    model_name: str = "",
 ) -> dict:
     """Validation pass.  Returns dict: loss, f1_macro, auc."""
     model.eval()
@@ -200,13 +212,20 @@ def evaluate(
     all_preds:  list = []
     all_probs:  list = []
 
+    _model_takes_noise_arg = model_name.lower().replace("-", "_").replace(" ", "_") in (
+        "late_fusion", "statnoise_fusion", "resaware_fusion"
+    )
+
     for batch in loader:
-        if len(batch) == 3 and isinstance(batch[0], torch.Tensor):
-            images, labels, _ = batch
-            inputs = (images.to(device),)
-        elif len(batch) == 4:
+        if len(batch) == 4:
             rgb, noise, labels, _ = batch
-            inputs = (rgb.to(device), noise.to(device))
+            if _model_takes_noise_arg:
+                inputs = (rgb.to(device), noise.to(device))
+            else:
+                inputs = (rgb.to(device),)
+        elif len(batch) == 3 and isinstance(batch[0], torch.Tensor):
+            rgb, labels, _ = batch
+            inputs = (rgb.to(device),)
         else:
             inputs, labels = batch[:-1], batch[-1]
 
@@ -271,7 +290,7 @@ def train_model(
 
         t = train_one_epoch(model, train_loader, optimizer, criterion, device,
                              model_name=model_name, epoch=epoch)
-        v = evaluate(model, val_loader, criterion, device)
+        v = evaluate(model, val_loader, criterion, device, model_name=model_name)
 
         if epoch < warmup_epochs:
             warmup_sched.step()

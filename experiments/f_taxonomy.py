@@ -72,11 +72,11 @@ def main() -> None:
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
-    if "THESIS_OUTPUT_ROOT" in os.environ:
-        cfg["output_root"] = os.environ["THESIS_OUTPUT_ROOT"]
+    out_root_str = os.environ.get("THESIS_OUTPUT_ROOT", cfg.get("output_root", "outputs"))
+    cfg["output_root"] = out_root_str
 
     cfg_hash = hashlib.sha256(Path(args.config).read_bytes()).hexdigest()[:12]
-    out_dir  = Path(cfg["output_root"]) / "f_taxonomy" / cfg_hash
+    out_dir  = Path(out_root_str) / "f_taxonomy" / cfg_hash
     out_dir.mkdir(parents=True, exist_ok=True)
 
     attrs_parquet = out_dir / "attributes.parquet"
@@ -116,11 +116,25 @@ def main() -> None:
 
     # ── Build long-form predictions DataFrame ──────────────────────────────
     from src.eval.cache import DiskCache
+    import glob as _glob
 
-    cache_root = cfg.get("inference_cache")
-    if not cache_root or not os.path.exists(cache_root):
-        logger.error(f"inference_cache not found: {cache_root}")
-        sys.exit(1)
+    cache_root = cfg.get("inference_cache", "")
+    if not os.path.isabs(cache_root):
+        cache_root = cache_root.replace("outputs/", out_root_str.rstrip("/") + "/")
+
+    # Auto-discover if the configured path doesn't exist directly:
+    # d_eval writes to outputs/d_eval/<hash>/_cache
+    if not os.path.exists(cache_root):
+        candidates = sorted(_glob.glob(
+            str(Path(out_root_str) / "d_eval" / "*" / "_cache")))
+        if candidates:
+            cache_root = candidates[-1]   # most recent
+            logger.info(f"Auto-discovered inference cache: {cache_root}")
+        else:
+            logger.error(
+                f"inference_cache not found: {cache_root}\n"
+                "Run: make eval")
+            sys.exit(1)
 
     cache   = DiskCache(cache_root)
     models  = cfg.get("models", [])
@@ -129,13 +143,30 @@ def main() -> None:
                         ["blur_bin", "pose_bin", "illum_bin",
                          "eye_state", "crop_tightness", "touches_edge"])
 
+    # d_eval saves FF++ under key "FF++_stage1"; taxonomy config may use "FF++"
+    # Build a mapping: config dataset name → cache key to try
+    dataset_cache_aliases = {
+        "FF++":        ["FF++_stage1", "FF++", "FFpp_stage1", "FFpp"],
+        "FF++_stage1": ["FF++_stage1", "FF++"],
+    }
+
     long_rows: list = []
     for dataset_name in cfg["manifests"]:
+        # Try the exact name first, then known aliases
+        aliases = dataset_cache_aliases.get(dataset_name, [dataset_name])
         for model_name in models:
-            result = cache.load_inference(model_name, dataset_name)
+            result = None
+            used_key = None
+            for alias in aliases:
+                result = cache.load_inference(model_name, alias)
+                if result is not None:
+                    used_key = alias
+                    break
             if result is None:
                 logger.warning(f"No cache for ({model_name}, {dataset_name})")
                 continue
+            if used_key != dataset_name:
+                logger.info(f"  Using cache key '{used_key}' for dataset '{dataset_name}'")
             scores    = result["scores"].astype(float)
             labels    = result["labels"].astype(int)
             paths_arr = result.get("paths", [None] * len(scores))

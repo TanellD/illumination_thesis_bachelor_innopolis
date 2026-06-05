@@ -1,0 +1,26 @@
+# DeepFakeFace (DFF) extraction config
+# Used by: experiments/a2_crop.py (MTCNN extraction)
+#
+# DFF is an image dataset (no videos).  Four sub-folders:
+#   inpainting/ insight/ text2img/  — FAKE (label=1)
+#   wiki/                           — REAL (label=0)
+#
+# Splits are stratified per folder, seed=42, 70/15/15.
+#
+# Data root can be overridden with env var THESIS_DFF_ROOT.
+
+dataset: dff
+data_dir: /data/deepfakeface          # override with THESIS_DFF_ROOT
+
+# MTCNN extraction parameters (image-level, no video frames)
+padding_ratio: 0.25
+min_conf: 0.80
+batch_size: 8
+
+# Crops are saved at 299×299 (target_size) since DFF source images vary in size
+target_size: 299
+
+# Noise precompute (not used in reported experiments for DFF)
+noise_crop_size: 299
+weights:
+  noiseprint: artifacts/models_weights/noiseprintplusplus_weights.pth

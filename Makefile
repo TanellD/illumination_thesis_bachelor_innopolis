@@ -14,10 +14,16 @@ PYTEST   := pytest
 CONFIGS  := configs
 OUTPUTS  := outputs
 
+# Pass FORCE=1 to re-run a stage even if its outputs already exist.
+# Example:  make b1 FORCE=1
+#           make train FORCE=1
+_FORCE   := $(if $(FORCE),--force,)
+
 .DEFAULT_GOAL := help
 
 .PHONY: help tiny full test test-all dry-run lint format clean clean-tiny \
         corpus-fixture \
+        download-ffpp download-ffpp-full \
         crop noise-pre \
         sbi tsbi manifests \
         b1 b2 b3 b4 \
@@ -39,6 +45,11 @@ help:
 	@echo "    make tiny             Smoke-test manifests + report on tiny corpus"
 	@echo "    make dry-run          Show full pipeline DAG without running"
 	@echo "    make full             Run everything end-to-end (~270 GPU-hours)"
+	@echo ""
+	@echo "  Data download (run once, requires FF++ access):"
+	@echo "    make download-ffpp    Download FF++ sample (NUM_VIDEOS=100, COMPRESSION=c23)"
+	@echo "    make download-ffpp-full  Download full FF++ dataset"
+	@echo "    Customise: make download-ffpp DATA_DIR=/my/path NUM_VIDEOS=500 SERVER=EU2"
 	@echo ""
 	@echo "  Data preparation (A):"
 	@echo "    make crop             A.2  MTCNN extraction — all 4 datasets"
@@ -63,6 +74,14 @@ help:
 	@echo "    make robustness       E    Perturbation grid"
 	@echo "    make taxonomy         F    Failure taxonomy (attributes + stats)"
 	@echo "    make report           G    Tables T1-T10, figures, RESULTS.md"
+	@echo ""
+	@echo "  Force re-run (skip output-exists check):"
+	@echo "    make <target> FORCE=1"
+	@echo "    Examples:"
+	@echo "      make b1 FORCE=1              Re-run Stage 1 ablation from scratch"
+	@echo "      make train FORCE=1           Re-run all five regimes"
+	@echo "      make train-regime REGIME=C_mix FORCE=1   Re-run one regime only"
+	@echo "      make noise-pre FORCE=1       Re-extract all noise maps"
 	@echo ""
 	@echo "  Dev:"
 	@echo "    make lint             ruff + mypy"
@@ -110,26 +129,64 @@ full: crop noise-pre sbi tsbi manifests b1 b2 b3 b4 train dl-quartile shortcuts 
 	@echo ">>> Full pipeline complete.  See $(OUTPUTS)/RESULTS.md"
 
 ##############################################################################
+# Data download (run once before anything else)
+##############################################################################
+
+# Download FF++ dataset (requires accepting TOS interactively).
+# Adjust DATA_DIR, NUM_VIDEOS, and COMPRESSION as needed.
+# After download, set THESIS_FFPP_ROOT to the output directory.
+DATA_DIR   ?= faceforensics
+NUM_VIDEOS ?= 50
+COMPRESSION ?= c23
+SERVER     ?= EU2
+
+download-ffpp:
+	@echo ">>> Downloading FF++ (-n $(NUM_VIDEOS) videos, $(COMPRESSION), server=$(SERVER))"
+	@echo "    Output: $(DATA_DIR)"
+	$(PYTHON) src/data/download_ffpp.py $(DATA_DIR) \
+		-d all \
+		-c $(COMPRESSION) \
+		-t videos \
+		-n $(NUM_VIDEOS) \
+		--server $(SERVER)
+	@echo ""
+	@echo ">>> Done.  Set THESIS_FFPP_ROOT=$(DATA_DIR) before running make crop."
+
+download-ffpp-full:
+	@echo ">>> Downloading FULL FF++ dataset ($(COMPRESSION), server=$(SERVER))"
+	$(PYTHON) src/data/download_ffpp.py $(DATA_DIR) \
+		-d all \
+		-c $(COMPRESSION) \
+		-t videos \
+		--server $(SERVER)
+
+##############################################################################
 # A — Data preparation
 ##############################################################################
 
 crop:
 	@echo ">>> A.2  MTCNN face extraction — FF++"
-	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/ffpp.yaml
+	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/ffpp.yaml $(_FORCE)
 	@echo ">>> A.2  MTCNN face extraction — Celeb-DF"
-	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/celebdf.yaml
+	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/celebdf.yaml $(_FORCE)
 	@echo ">>> A.2  MTCNN face extraction — DFDC"
-	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/dfdc.yaml
+	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/dfdc.yaml $(_FORCE)
 	@echo ">>> A.2  MTCNN face extraction — DFF"
-	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/dff.yaml
+	$(PYTHON) experiments/a2_crop.py --config $(CONFIGS)/data/dff.yaml $(_FORCE)
 
 noise-pre:
 	@echo ">>> A.5  Noiseprint++ noise-map precomputation — FF++"
 	$(PYTHON) experiments/a5_noise_precompute.py \
-		--config $(CONFIGS)/data/ffpp.yaml
+		--config $(CONFIGS)/data/ffpp.yaml $(_FORCE)
 	@echo ">>> A.5  Noiseprint++ noise-map precomputation — Celeb-DF"
 	$(PYTHON) experiments/a5_noise_precompute.py \
-		--config $(CONFIGS)/data/celebdf.yaml
+		--config $(CONFIGS)/data/celebdf.yaml $(_FORCE)
+	@echo ">>> A.5  Noiseprint++ noise-map precomputation — DFDC"
+	$(PYTHON) experiments/a5_noise_precompute.py \
+		--config $(CONFIGS)/data/dfdc.yaml $(_FORCE)
+	@echo ">>> A.5  Noiseprint++ noise-map precomputation — DFF"
+	$(PYTHON) experiments/a5_noise_precompute.py \
+		--config $(CONFIGS)/data/dff.yaml $(_FORCE)
 
 ##############################################################################
 # C.1 — SBI / T-SBI generation
@@ -140,12 +197,14 @@ sbi:
 	$(PYTHON) experiments/c1_generate_sbi.py \
 		--config  $(CONFIGS)/stage2/tsbi.yaml \
 		--out-dir $(OUTPUTS)/sbi \
-		--out-csv $(OUTPUTS)/sbi_labels.csv
+		--out-csv $(OUTPUTS)/sbi_labels.csv $(_FORCE)
 
 tsbi:
 	@echo ">>> C.1  T-SBI generation"
 	$(PYTHON) experiments/c1_generate_tsbi.py \
-		--config $(CONFIGS)/stage2/tsbi.yaml
+		--config  $(CONFIGS)/stage2/tsbi.yaml \
+		--out-dir $(OUTPUTS)/tsbi \
+		--out-csv $(OUTPUTS)/tsbi_labels.csv $(_FORCE)
 
 ##############################################################################
 # C.2+C.3 — Manifest assembly
@@ -166,22 +225,22 @@ manifests:
 b1:
 	@echo ">>> B.1  Three-model ablation (5 seeds)"
 	$(PYTHON) experiments/b1_ablation.py \
-		--config $(CONFIGS)/stage1/b1_ablation.yaml
+		--config $(CONFIGS)/stage1/b1_ablation.yaml $(_FORCE)
 
 b2:
 	@echo ">>> B.2  Seven-level bottleneck diagnostic"
 	$(PYTHON) experiments/b2_bottleneck.py \
-		--config $(CONFIGS)/stage1/b2_bottleneck.yaml
+		--config $(CONFIGS)/stage1/b2_bottleneck.yaml $(_FORCE)
 
 b3:
 	@echo ">>> B.3  Context-crop experiment (1.3x tight vs 2.7x context)"
 	$(PYTHON) experiments/b3_context_crop.py \
-		--config $(CONFIGS)/stage1/b3_context_crop.yaml
+		--config $(CONFIGS)/stage1/b3_context_crop.yaml $(_FORCE)
 
 b4:
 	@echo ">>> B.4  Fixed-fusion variants — StatNoise + ResAware (5 seeds each)"
 	$(PYTHON) experiments/b4_fixed_fusion.py \
-		--config $(CONFIGS)/stage1/b4_fixed_fusion.yaml
+		--config $(CONFIGS)/stage1/b4_fixed_fusion.yaml $(_FORCE)
 
 ##############################################################################
 # C.3 — Stage 2 training
@@ -190,13 +249,13 @@ b4:
 train:
 	@echo ">>> C.3  Five-regime training (A B_pure B_mix C_pure C_mix)"
 	$(PYTHON) experiments/c3_train_regimes.py \
-		--config $(CONFIGS)/stage2/c3_train_regimes.yaml
+		--config $(CONFIGS)/stage2/c3_train_regimes.yaml $(_FORCE)
 
 # Run a single regime (e.g. make train-regime REGIME=C_mix)
 train-regime:
 	$(PYTHON) experiments/c3_train_regimes.py \
 		--config $(CONFIGS)/stage2/c3_train_regimes.yaml \
-		--regime $(REGIME)
+		--regime $(REGIME) $(_FORCE)
 
 ##############################################################################
 # C.4 — dL-quartile multi-seed diagnostic
@@ -205,7 +264,7 @@ train-regime:
 dl-quartile:
 	@echo ">>> C.4  dL-quartile diagnostic (HIGHDL / LOWDL, 3 seeds)"
 	$(PYTHON) experiments/c4_dl_quartile.py \
-		--config $(CONFIGS)/stage2/c4_dl_quartile.yaml
+		--config $(CONFIGS)/stage2/c4_dl_quartile.yaml $(_FORCE)
 
 ##############################################################################
 # C.5 — Shortcut ablation
@@ -214,7 +273,7 @@ dl-quartile:
 shortcuts:
 	@echo ">>> C.5  Shortcut ablation (N0-N6 T-SBI, P0-P5 SBI)"
 	$(PYTHON) experiments/c5_shortcuts.py \
-		--config $(CONFIGS)/stage2/c5_shortcuts.yaml
+		--config $(CONFIGS)/stage2/c5_shortcuts.yaml $(_FORCE)
 
 ##############################################################################
 # D — Evaluation
@@ -223,7 +282,7 @@ shortcuts:
 eval:
 	@echo ">>> D  Evaluation — all (model, dataset) pairs"
 	$(PYTHON) experiments/d_eval.py \
-		--config $(CONFIGS)/eval/d_eval.yaml
+		--config $(CONFIGS)/eval/d_eval.yaml $(_FORCE)
 
 # Evaluate a single checkpoint (e.g. make eval-one CONFIG=configs/eval/d_eval.yaml)
 eval-one:
@@ -237,7 +296,7 @@ eval-one:
 robustness:
 	@echo ">>> E  Robustness perturbation grid"
 	$(PYTHON) experiments/e_robustness.py \
-		--config $(CONFIGS)/eval/e_robustness.yaml
+		--config $(CONFIGS)/eval/e_robustness.yaml $(_FORCE)
 
 ##############################################################################
 # F — Failure taxonomy
@@ -246,14 +305,14 @@ robustness:
 taxonomy:
 	@echo ">>> F  Failure taxonomy (attributes + chi-square + Jaccard)"
 	$(PYTHON) experiments/f_taxonomy.py \
-		--config $(CONFIGS)/eval/f_taxonomy.yaml
+		--config $(CONFIGS)/eval/f_taxonomy.yaml $(_FORCE)
 
 # Attribute extraction only (CPU, no GPU, no inference cache needed)
 taxonomy-attrs:
 	@echo ">>> F.1  Per-frame attribute computation only"
 	$(PYTHON) experiments/f_taxonomy.py \
 		--config $(CONFIGS)/eval/f_taxonomy.yaml \
-		--attrs-only
+		--attrs-only $(_FORCE)
 
 ##############################################################################
 # G — Report
@@ -262,7 +321,7 @@ taxonomy-attrs:
 report:
 	@echo ">>> G  Tables T1-T10, figures, RESULTS.md"
 	$(PYTHON) experiments/g_report.py \
-		--config $(CONFIGS)/eval/report.yaml
+		--config $(CONFIGS)/eval/report.yaml $(_FORCE)
 
 # Report from a specific prior run (e.g. to regenerate figures without rerunning eval)
 report-force:

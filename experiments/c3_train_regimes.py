@@ -75,11 +75,9 @@ def main() -> None:
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
-    if "THESIS_OUTPUT_ROOT" in os.environ:
-        cfg["output_root"] = os.environ["THESIS_OUTPUT_ROOT"]
-
     cfg_hash = hashlib.sha256(Path(args.config).read_bytes()).hexdigest()[:12]
-    out_root = Path(cfg["output_root"]) / "c3_regimes" / cfg_hash
+    out_root_str = os.environ.get("THESIS_OUTPUT_ROOT", cfg.get("output_root", "outputs"))
+    out_root = Path(out_root_str) / "c3_regimes" / cfg_hash
     out_root.mkdir(parents=True, exist_ok=True)
 
     regimes_to_run = [args.regime] if args.regime else list(cfg.get("regimes", {}).keys())
@@ -110,9 +108,25 @@ def main() -> None:
             logger.info(f"=== Regime: {regime}  Seed: {seed} ===")
             set_all_seeds(seed)
 
-            train_rows = _read_manifest(regime_cfg["train_csv"])
-            val_rows   = _read_manifest(regime_cfg["val_csv"])
+            def _resolve(p: str) -> str:
+                if not os.path.isabs(p):
+                    return p.replace("outputs/", out_root_str.rstrip("/") + "/")
+                return p
+
+            train_csv = _resolve(regime_cfg["train_csv"])
+            val_csv   = _resolve(regime_cfg["val_csv"])
+
+            if not os.path.exists(train_csv):
+                logger.warning(
+                    f"[{regime}] train manifest not found: {train_csv} — "
+                    "run `make manifests` first. Skipping.")
+                continue
+            train_rows = _read_manifest(train_csv)
+            val_rows   = _read_manifest(val_csv) if os.path.exists(val_csv) else []
             logger.info(f"  train: {len(train_rows):,}  val: {len(val_rows):,}")
+
+            training_cfg  = cfg.get("training",  {})
+            optimizer_cfg = cfg.get("optimizer", {})
 
             model = build_model(pretrained=True)
             result = train_stage2(
@@ -121,9 +135,9 @@ def main() -> None:
                 val_rows=val_rows,
                 device=device,
                 out_dir=str(run_dir),
-                epochs=cfg.get("epochs", 20),
-                batch_size=cfg.get("batch_size", 32),
-                lr=cfg.get("lr", 1e-4),
+                epochs=training_cfg.get("max_epochs", cfg.get("epochs", 20)),
+                batch_size=training_cfg.get("batch_size", cfg.get("batch_size", 16)),
+                lr=float(optimizer_cfg.get("lr", cfg.get("lr", 3e-4))),
                 weight_decay=cfg.get("weight_decay", 1e-4),
                 num_workers=cfg.get("num_workers", 4),
                 seed=seed,

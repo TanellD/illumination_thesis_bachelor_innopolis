@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "thesis-pipeline"
@@ -22,8 +22,10 @@ dependencies = [
     "facenet-pytorch==2.6.0",          # MTCNN
 
     # Landmarks & masks
-    "mediapipe==0.10.18",              # FaceMesh for T-SBI masks (see KNOWN_QUIRKS #13)
-    "sentencepiece==0.1.99",           # required co-dep for mediapipe 0.10.18
+    # mediapipe 0.10.18 pulls in jax which requires Python >=3.10 (match syntax).
+    # 0.10.9 is the last version that ships without a jax dependency and has
+    # FaceMesh on Python 3.9.  See KNOWN_QUIRKS.md — the landmark API is identical.
+    "mediapipe==0.10.9",
 
     # Image processing
     "opencv-python==4.9.0.80",
@@ -83,7 +85,6 @@ thesis-g-report    = "experiments.g_report:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "experiments*"]
 
 [tool.ruff]
 line-length = 100
@@ -101,3 +102,4 @@ warn_unused_ignores = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+pythonpath = ["."]

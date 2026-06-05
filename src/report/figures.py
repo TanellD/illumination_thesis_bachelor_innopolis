@@ -281,6 +281,14 @@ def plot_stage1_auc_bars(
         return
 
     df = pd.read_csv(metrics_csv)
+
+    # T3 CSV is wide format: model, FF++, Celeb-DF, DFDC, DFF
+    # Melt to long format: model, dataset, auc
+    if "model" in df.columns and "auc" not in df.columns:
+        dataset_cols = [c for c in df.columns if c != "model"]
+        df = df.melt(id_vars="model", value_vars=dataset_cols,
+                     var_name="dataset", value_name="auc")
+
     in_dist    = datasets_in_dist    or ["FF++"]
     cross_dist = datasets_cross_dist or ["Celeb-DF", "DFDC", "DFF"]
 

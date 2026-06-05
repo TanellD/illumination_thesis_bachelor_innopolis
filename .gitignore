@@ -26,6 +26,10 @@ outputs/
 
 # Raw corpus data (tens/hundreds of GB — never in git)
 data/
+!configs/data/
+!src/data
+dfdc
+tests/fixtures/
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Python runtime
@@ -122,3 +126,7 @@ desktop.ini
 *.sock
 .env
 .env.*
+
+*.mp4
+*.jpg
+*.png

@@ -1,0 +1,22 @@
+# FF++ dataset extraction config
+# Used by: experiments/a2_crop.py (MTCNN extraction)
+#          experiments/a5_noise_precompute.py (noise precompute)
+#
+# Data root can be overridden with env var THESIS_FFPP_ROOT.
+# Output root can be overridden with env var THESIS_OUTPUT_ROOT.
+
+dataset: ff++
+data_dir: /data/faceforensics        # override with THESIS_FFPP_ROOT
+
+# MTCNN extraction parameters (must not change — these produced the reported crops)
+frames_per_video: 20
+padding_ratio: 0.3                   # 30% symmetric padding around face bbox
+min_conf: 0.85                       # minimum MTCNN detection confidence
+batch_size: 8                        # frames per GPU batch
+
+# Noise precompute parameters
+noise_crop_size: 299                 # Stage 1 uses 299×299 noise crops
+
+# Noiseprint++ weights (overridden by THESIS_NOISEPRINT_WEIGHTS env var)
+weights:
+  noiseprint: artifacts/models_weights/noiseprintplusplus_weights.pth

@@ -13,27 +13,35 @@ output_root: outputs
 batch_size: 8
 num_workers: 0
 
-# Manifests (same as d_eval)
+# Manifests — FF++ uses split='test', cross-dataset use split='all'
 manifests:
-  FF++_stage1: outputs/crops/ff++/manifest.csv
-  CelebDF:     outputs/crops/celebdf/manifest.csv
-  DFDC:        outputs/crops/dfdc/manifest.csv
-  DFF:         outputs/crops/dff/manifest.csv
+  FF++_stage1:
+    csv:   outputs/crops/ff++/manifest.csv
+    split: test
+  CelebDF:
+    csv:   outputs/crops/celebdf/manifest.csv
+    split: all
+  DFDC:
+    csv:   outputs/crops/dfdc/manifest.csv
+    split: all
+  DFF:
+    csv:   outputs/crops/dff/manifest.csv
+    split: all
 
-# Checkpoints — inherit from d_eval.yaml for consistency
+# Checkpoints — flat alias paths written by training scripts
 checkpoints:
   RGB-Only:
     family: stage1_rgb
     target_size: 299
-    ckpt: outputs/b1_ablation/checkpoints/best_RGB-Only_seed42.pt
+    ckpt: outputs/b1_ablation/RGB-Only_seed42/best.pt
   Residual-Only:
     family: stage1_residual
     target_size: 299
-    ckpt: outputs/b1_ablation/checkpoints/best_Residual-Only_seed42.pt
+    ckpt: outputs/b1_ablation/Residual-Only_seed42/best.pt
   Late-Fusion:
     family: stage1_fusion
     target_size: 299
-    ckpt: outputs/b1_ablation/checkpoints/best_Late-Fusion_seed42.pt
+    ckpt: outputs/b1_ablation/Late-Fusion_seed42/best.pt
   B_mix:
     family: stage2
     target_size: 380

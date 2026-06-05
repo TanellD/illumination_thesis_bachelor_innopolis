@@ -102,11 +102,45 @@ def main() -> None:
     cache = DiskCache(out_dir / "_cache")
     all_metrics = []
 
-    ff_manifest = cfg.get("manifests", {}).get(
-        "ff++", str(Path(out_root) / "crops" / "ff++" / "manifest.csv"))
-    cdf_manifest = cfg.get("manifests", {}).get(
-        "celebdf", str(Path(out_root) / "crops" / "celebdf" / "manifest.csv"))
+    def _require_noise_manifest(ds_tag: str, cfg_key: str) -> str:
+        """Return a manifest that has noise_crop_path, or raise clearly."""
+        import pandas as pd
 
+        candidates = [
+            # 1. explicit config key (resolved against out_root)
+            *(
+                [cfg.get("manifests", {})[cfg_key].replace(
+                    "outputs/", str(Path(out_root)) + "/")]
+                if cfg_key in cfg.get("manifests", {}) else []
+            ),
+            # 2. standard noise output location
+            str(Path(out_root) / "noise" / ds_tag / "manifest.csv"),
+        ]
+
+        for path in candidates:
+            if not os.path.exists(path):
+                continue
+            cols = pd.read_csv(path, nrows=0).columns.tolist()
+            if "noise_crop_path" in cols:
+                return path
+
+        raise FileNotFoundError(
+            f"No manifest with noise_crop_path found for dataset '{ds_tag}'.\n"
+            f"Checked: {candidates}\n"
+            "Run: make noise-pre"
+        )
+
+    ff_manifest  = _require_noise_manifest("ff++",    "ff++")
+    cdf_manifest = _require_noise_manifest("celebdf", "celebdf")
+
+    train_tf = transforms.Compose([
+        transforms.Resize((330, 330)),
+        transforms.RandomCrop(299),
+        transforms.RandomHorizontalFlip(0.5),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5]*3, [0.5]*3),
+    ])
     val_tf = transforms.Compose([
         transforms.Resize((330, 330)),
         transforms.CenterCrop(299),
@@ -119,11 +153,10 @@ def main() -> None:
             set_all_seeds(seed)
             model = _build_model(model_name, noise_weights).to(device)
 
-            needs_noise = True  # both fixed-fusion variants need noise crops
             train_ds = NoiseCropDataset.from_csv(ff_manifest, split="train",
-                                                   transform=val_tf)
+                                                   rgb_transform=train_tf)
             val_ds   = NoiseCropDataset.from_csv(ff_manifest, split="val",
-                                                   transform=val_tf)
+                                                   rgb_transform=val_tf)
 
             train_loader = torch.utils.data.DataLoader(
                 train_ds, batch_size=cfg.get("training", {}).get("batch_size", 32),
@@ -136,7 +169,7 @@ def main() -> None:
                 model, train_loader, val_loader, device,
                 model_name=model_name, seed=seed,
                 epochs=cfg.get("training", {}).get("max_epochs", 30),
-                lr=float(cfg.get("optimizer", {}).get("lr", 1e-4)),
+                lr=float(cfg.get("optimizer", {}).get("lr", 1e-3)),
             )
 
             ckpt_dir = out_dir / "checkpoints"
@@ -149,8 +182,9 @@ def main() -> None:
                                      ("CelebDF",     cdf_manifest)]:
                 if not os.path.exists(ds_csv):
                     continue
-                test_ds = NoiseCropDataset.from_csv(ds_csv, split="test",
-                                                      transform=val_tf)
+                eval_split = "test" if "ff" in ds_key.lower() else "all"
+                test_ds = NoiseCropDataset.from_csv(ds_csv, split=eval_split,
+                                                      rgb_transform=val_tf)
                 loader  = torch.utils.data.DataLoader(
                     test_ds, batch_size=32, shuffle=False, num_workers=0)
                 model.eval()

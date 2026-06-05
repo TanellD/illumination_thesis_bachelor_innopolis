@@ -19,13 +19,13 @@ timm==0.9.16
 facenet-pytorch==2.6.0
 
 # ── Landmarks / masks ─────────────────────────────────────────────────────────
-# mediapipe 0.10.18 is the version that actually ran in the thesis experiments.
-# 0.10.21 failed (see cli_history lines 809-830). Requires sentencepiece<0.2
-# and tensorflow<2.16 as co-dependencies; install in this order:
-#   pip install "tensorflow<2.16"
-#   pip install --no-compile "mediapipe==0.10.18" "sentencepiece<0.2"
-mediapipe==0.10.18
-sentencepiece==0.1.99
+# mediapipe 0.10.18 was the version used in the original thesis experiments, but
+# it pulls in jax which uses Python 3.10+ match syntax and breaks on Python 3.9.
+# 0.10.9 is the last version without a jax dependency; FaceMesh API is identical.
+# If you need 0.10.18 exactly (e.g. to verify original checkpoint behaviour),
+# install on Python 3.10+ and prepend:
+#   pip install "tensorflow<2.16" "sentencepiece<0.2"
+mediapipe==0.10.9
 
 # ── Image processing ──────────────────────────────────────────────────────────
 opencv-python==4.9.0.80

@@ -1,0 +1,27 @@
+# Celeb-DF v2 dataset extraction config
+# Used by: experiments/a2_crop.py (MTCNN extraction)
+#          experiments/a5_noise_precompute.py (noise precompute)
+#
+# NOTE (KNOWN_QUIRKS #14): The final evaluation in the thesis used dlib crops
+# from week 3 (experiment_artifacts/week_3_artifacts/celebdf2_face_crops_dlib/).
+# This config produces fresh MTCNN crops.  Re-running from scratch may give
+# slightly different cross-dataset AUC due to detector differences.
+#
+# Data root can be overridden with env var THESIS_CELEBDF_ROOT.
+
+dataset: celebdf
+data_dir: /data/celebdf2             # override with THESIS_CELEBDF_ROOT
+
+# MTCNN extraction parameters
+frames_per_video: 60
+padding_ratio: 0.25
+min_conf: 0.80
+batch_size: 8
+
+# CelebDF has no actor splits; all crops get split='all'
+split: all
+
+# Noise precompute
+noise_crop_size: 299
+weights:
+  noiseprint: artifacts/models_weights/noiseprintplusplus_weights.pth

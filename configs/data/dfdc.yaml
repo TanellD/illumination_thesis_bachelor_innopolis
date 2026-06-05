@@ -1,0 +1,22 @@
+# DFDC (test partition) extraction config
+# Used by: experiments/a2_crop.py (MTCNN extraction)
+#
+# Expects the dfdc_open_train folder with metadata.json + .mp4 files.
+# Splits are deterministic at the video level, seed=42 (DFDC has no
+# actor-identity metadata so we use random 70/15/15).
+#
+# Data root can be overridden with env var THESIS_DFDC_ROOT.
+
+dataset: dfdc
+data_dir: /data/dfdc                 # override with THESIS_DFDC_ROOT
+
+# MTCNN extraction parameters
+frames_per_video: 60
+padding_ratio: 0.25
+min_conf: 0.80
+batch_size: 4                        # lower batch size: DFDC frames are larger
+
+# Noise precompute — used for Stage 1 cross-dataset evaluation
+noise_crop_size: 299
+weights:
+  noiseprint: artifacts/models_weights/noiseprintplusplus_weights.pth
